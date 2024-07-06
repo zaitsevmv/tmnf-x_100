@@ -35,7 +35,7 @@ void requests::LoadTemp(const std::string &tempFile) {
     std::ifstream fin(tempFile);
     std::string time;
     getline(fin, time);
-    std::cout << "Previous update: " << time << std::endl;
+    std::cout << "Last tracks update: " << time << std::endl;
     allTracks.clear();
     int64_t id;
     bool beaten;
@@ -125,6 +125,7 @@ void requests::GetNoRecordMaps() {
     curl = curl_easy_init();
     if(curl) {
         httpsURLConstructor uc(host, target, params);
+        std::cout << "Getting tracks." << std::endl;
         while(mapCount <= lastResponseSize){
             curl_easy_setopt(curl, CURLOPT_URL, uc.GetURL().c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -156,6 +157,7 @@ void requests::GetNoRecordMaps() {
             uc.UpdateParams(params);
             std::cout << noRecordTracks.size() << std::endl;
         }
+        std::cout << "Got tracks." << std::endl;
         curl_easy_cleanup(curl);
     }
 
@@ -236,13 +238,13 @@ void requests::Compare() {
     }
     totalBeaten+=newBeaten;
     std::cout << "################\nTotal beaten: " << totalBeaten << std::endl
-        << "New beaten: " << newBeaten << "\n################" << std::endl;
+        << "New beaten: " << newBeaten << std::endl;
     int newMaps = 0;
     for(auto& [id, tags]: noRecordTracks){
         allTracks.emplace_back(id, false, tags);
         newMaps++;
     }
-    std::cout << "################\nNew maps: " << newMaps << std::endl << "################" << std::endl;
+    std::cout << "New maps: " << newMaps << std::endl << "################" << std::endl;
 }
 
 void requests::PrintWithRecords() {
@@ -264,12 +266,14 @@ void requests::MakeLeaderboards() {
     for (int a = Normal; a != All; a++){
         leaderboards.emplace(static_cast<trackTag>(a), std::map<int64_t, std::pair<std::string, int>>());
     }
-    std::cout << "Tracks to check: " << tracksToCheck.size() << std::endl;
+    std::cout << "Replays to check: " << tracksToCheck.size() << std::endl;
+    std::cout << "Getting replays." << std::endl;
     for(const auto& a: tracksToCheck){
         if(!oldRecords.contains(a)){
             GetReplaysFromMap(a);
         }
     }
+    std::cout << "Got replays." << std::endl;
 }
 
 std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
@@ -334,9 +338,13 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
             std::fstream json_in("/home/response_replay.json");
             std::string abc;
             json_in >> abc;
+            if(abc.find("\"Type\"") < abc.size()){
+                return;
+            }
             if(abc.find("\"More\"") >= abc.size()){
                 continue;
             }
+            std::cout << trackId << std::endl;
             auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
             UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
             return;
@@ -369,6 +377,9 @@ void requests::UpdateLeaderboards(const int64_t trackId, const std::string &fini
 
 void requests::SaveTempLeaderboards(const std::string &tempFile) {
     std::ofstream fout(tempFile);
+    auto currentTime = std::chrono::system_clock::now();
+    std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
+    fout << std::ctime(&time) << std::endl;
     for(const auto& [id, subTable]: leaderboards){
         fout << id << ' ' << subTable.size() << std::endl;
         for(const auto& [playerId, player]: subTable){
@@ -380,6 +391,9 @@ void requests::SaveTempLeaderboards(const std::string &tempFile) {
 
 void requests::LoadTempLeaderboards(const std::string &tempFile) {
     std::ifstream fin(tempFile);
+    std::string time;
+    getline(fin, time);
+    std::cout << "Last leaderboards update: " << time << std::endl;
     int tag;
     int n{0};
     while(fin >> tag){
