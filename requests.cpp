@@ -21,7 +21,7 @@ void requests::SaveTemp(const std::string &tempFile) {
     auto currentTime = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
     fout << std::ctime(&time) << std::endl;
-    for(const auto& [id, beaten, tags]: allNoRecord){
+    for(const auto& [id, beaten, tags]: allTracks){
         fout << id << ' ' << beaten << std::endl;
         for(const auto& a: tags){
             fout << a << ' ';
@@ -31,12 +31,12 @@ void requests::SaveTemp(const std::string &tempFile) {
     fout.close();
 }
 
-void requests::ReadTemp(const std::string &tempFile) {
+void requests::LoadTemp(const std::string &tempFile) {
     std::ifstream fin(tempFile);
     std::string time;
     getline(fin, time);
     std::cout << "Previous update: " << time << std::endl;
-    allNoRecord.clear();
+    allTracks.clear();
     int64_t id;
     bool beaten;
     std::string tagsLine;
@@ -47,7 +47,7 @@ void requests::ReadTemp(const std::string &tempFile) {
         while(fin >> curTag && curTag <= 12){
             tags.push_back(static_cast<trackTag>(curTag));
         }
-        allNoRecord.emplace_back(id, beaten, tags);
+        allTracks.emplace_back(id, beaten, tags);
         id = curTag;
         tags.clear();
     }
@@ -154,7 +154,7 @@ void requests::GetNoRecordMaps() {
                      {"inhasrecord", 0},
                      {"after", lastNoRecord}};
             uc.UpdateParams(params);
-            std::cout << noRecordMaps.size() << std::endl;
+            std::cout << noRecordTracks.size() << std::endl;
         }
         curl_easy_cleanup(curl);
     }
@@ -181,62 +181,73 @@ void requests::GetNoRecordJSON(const std::string& jsonFile) {
                             tags.push_back(static_cast<trackTag>(t.second.get_value<int>()));
                         }
                         newTrack.second = tags;
-                        noRecordMaps.insert(newTrack);
+                        noRecordTracks.insert(newTrack);
                     }
                 }
             }
-            noRecordMaps.erase(0);
+            noRecordTracks.erase(0);
             return;
         }
     }
 }
 
 void requests::PrintSet() {
-    for(const auto& a: noRecordMaps){
+    for(const auto& a: noRecordTracks){
         std::cout << a.first;
         for(const auto& v: a.second){
             std::cout << ' ' << v;
         }
         std::cout << std::endl;
     }
-    std::cout << noRecordMaps.size() << std::endl;
-}
-
-void requests::Compare() {
-    std::cout << std::endl;
-    if(allNoRecord.empty()){
-        for(auto& [id, tags]: noRecordMaps){
-            allNoRecord.emplace_back(id, false, tags);
-        }
-        return;
-    }
-    int totalBeaten = 0;
-    for(auto& [id, beaten, tags]: allNoRecord){
-        if(!beaten && !noRecordMaps.contains(id)){
-            beaten = true;
-        }
-        if(beaten){
-            totalBeaten ++;
-        }
-    }
-    std::cout << "################" << std::endl << totalBeaten << std::endl;
-    std::cout << "################" << std::endl;
+    std::cout << noRecordTracks.size() << std::endl;
 }
 
 void requests::PrintMap() {
-    for(const auto& [id, beaten, tags]: allNoRecord){
+    for(const auto& [id, beaten, tags]: allTracks){
         std::cout << id << ' ' << beaten << " [ ";
         for(const auto& a: tags){
             std::cout << a << ' ';
         }
         std::cout << "]" << std::endl;
     }
-    std::cout << allNoRecord.size() << std::endl;
+    std::cout << allTracks.size() << std::endl;
+}
+
+void requests::Compare() {
+    std::cout << std::endl;
+    if(allTracks.empty()){
+        for(auto& [id, tags]: noRecordTracks){
+            allTracks.emplace_back(id, false, tags);
+        }
+        return;
+    }
+    int totalBeaten{0};
+    int newBeaten{0};
+    for(auto& [id, beaten, tags]: allTracks){
+        if(!beaten && !noRecordTracks.contains(id)){
+            beaten = true;
+            newBeaten++;
+            tracksToCheck.push_back(id);
+        }else if(beaten){
+            oldRecords.emplace(id);
+            totalBeaten ++;
+        }
+        noRecordTracks.erase(id);
+    }
+    totalBeaten+=newBeaten;
+    std::cout << "################\nTotal beaten: " << totalBeaten << std::endl
+        << "New beaten: " << newBeaten << "\n################" << std::endl;
+    int newMaps = 0;
+    for(auto& [id, tags]: noRecordTracks){
+        allTracks.emplace_back(id, false, tags);
+        newMaps++;
+    }
+    std::cout << "################\nNew maps: " << newMaps << std::endl << "################" << std::endl;
 }
 
 void requests::PrintWithRecords() {
     int totalRecords = 0;
-    for(const auto& [id, beaten, tags]: allNoRecord){
+    for(const auto& [id, beaten, tags]: allTracks){
         if(beaten){
             std::cout << id << ' ' << beaten << " [ ";
             for(const auto& a: tags){
@@ -247,4 +258,139 @@ void requests::PrintWithRecords() {
         }
     }
     std::cout << totalRecords << std::endl;
+}
+
+void requests::MakeLeaderboards() {
+    for (int a = Normal; a != All; a++){
+        leaderboards.emplace(static_cast<trackTag>(a), std::map<int64_t, std::pair<std::string, int>>());
+    }
+    std::cout << "Tracks to check: " << tracksToCheck.size() << std::endl;
+    for(const auto& a: tracksToCheck){
+        if(!oldRecords.contains(a)){
+            GetReplaysFromMap(a);
+        }
+    }
+}
+
+std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
+    std::ifstream file(jsonFile);
+    pt::ptree p;
+    pt::read_json(file, p);
+    for (const auto& [key, value]: p) {
+        if(key == "Results"){
+            for(const auto& a: value) {
+                for(const auto& b: a.second) {
+                    int64_t userId{0};
+                    std::string finisherName;
+                    for(const auto& [k, val]: b.second) {
+                        if(k == "UserId"){
+                            userId = val.get_value<int64_t>();
+                        }
+                        if(k == "Name"){
+                            finisherName = val.get_value<std::string>();
+                        }
+                        if(!finisherName.empty() && userId > 0){
+                            return {userId, finisherName};
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void requests::GetReplaysFromMap(const int64_t trackId) {
+    const std::string host = "tmnf.exchange";
+    const std::string target = "/api/replays";
+    std::map<std::string, param_cell> params =
+            {{"fields", std::vector<std::string>{"User.UserId", "User.Name"}},
+             {"trackId", trackId},
+             {"count", 1}};
+
+    CURL* curl;
+    CURLcode res;
+    std::string readBuffer;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if(curl) {
+        httpsURLConstructor uc(host, target, params);
+        while(true){
+            curl_easy_setopt(curl, CURLOPT_URL, uc.GetURL().c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            res = curl_easy_perform(curl);
+
+            if(res != CURLE_OK){
+                std::cerr << curl_easy_strerror(res) << "curl_easy_perform() failed: %s\n" << std::endl;
+                continue;
+            }
+
+            std::fstream json_out;
+            json_out.open("/home/response_replay.json", std::ios_base::out);
+            json_out << readBuffer << std::endl;
+            readBuffer.clear();
+            json_out.close();
+            std::fstream json_in("/home/response_replay.json");
+            std::string abc;
+            json_in >> abc;
+            if(abc.find("\"More\"") >= abc.size()){
+                continue;
+            }
+            auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
+            UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
+            return;
+        }
+        curl_easy_cleanup(curl);
+    }
+
+    curl_global_cleanup();
+}
+
+void requests::UpdateLeaderboards(const int64_t trackId, const std::string &finisherName, const int64_t finisherId) {
+    for(const auto& [id, beaten, tags]: allTracks){
+        if(id == trackId){
+            if(leaderboards[All].find(finisherId) != leaderboards[All].end()){
+                leaderboards[All][finisherId].second++;
+            } else{
+                leaderboards[All].emplace(finisherId, std::make_pair(finisherName, 1));
+            }
+            for(const auto& a: tags){
+                if(leaderboards[a].contains(finisherId)){
+                    leaderboards[a][finisherId].second++;
+                } else{
+                    leaderboards[a].emplace(finisherId, std::make_pair(finisherName, 1));
+                }
+            }
+            return;
+        }
+    }
+}
+
+void requests::SaveTempLeaderboards(const std::string &tempFile) {
+    std::ofstream fout(tempFile);
+    for(const auto& [id, subTable]: leaderboards){
+        fout << id << ' ' << subTable.size() << std::endl;
+        for(const auto& [playerId, player]: subTable){
+            fout << playerId << ' ' << player.first << ' ' << player.second << std::endl;
+        }
+    }
+    fout.close();
+}
+
+void requests::LoadTempLeaderboards(const std::string &tempFile) {
+    std::ifstream fin(tempFile);
+    int tag;
+    int n{0};
+    while(fin >> tag){
+        fin >> n;
+        for(int i = 0; i < n; i++){
+            int64_t playerId;
+            std::string playerName;
+            int playerCount;
+            fin >> playerId >> playerName >> playerCount;
+            leaderboards[static_cast<trackTag>(tag)].emplace(playerId, std::make_pair(playerName, playerCount));
+        }
+    }
+    fin.close();
 }

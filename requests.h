@@ -14,20 +14,26 @@ enum trackTag{Normal, Stunt, Maze, Offroad, Laps, Fullspeed, LOL, Tech, SpeedTec
 class requests {
 public:
     void SaveTemp(const std::string& tempFile);
-    void ReadTemp(const std::string& tempFile);
+    void LoadTemp(const std::string& tempFile);
     void GetNoRecordMaps();
-    void GetReplays();
+    void GetReplaysFromMap(const int64_t trackId);
     void GetNoRecordJSON(const std::string& jsonFile);
 
     void Compare();
+    void MakeLeaderboards();
+    void UpdateLeaderboards(int64_t trackId, const std::string& finisherName, const int64_t finisherId);
+    void SaveTempLeaderboards(const std::string& tempFile);
+    void LoadTempLeaderboards(const std::string& tempFile);
 
     void PrintSet();
     void PrintMap();
     void PrintWithRecords();
 private:
-    std::map<int64_t,std::vector<trackTag>> noRecordMaps;
-    std::vector<std::tuple<int64_t, bool, std::vector<trackTag>>> allNoRecord;
-    std::map<trackTag, std::vector<int>> leaderboards;
+    std::map<int64_t,std::vector<trackTag>> noRecordTracks;
+    std::vector<std::tuple<int64_t, bool, std::vector<trackTag>>> allTracks;
+    std::map<trackTag, std::map<int64_t, std::pair<std::string, int>>> leaderboards;
+    std::vector<int64_t> tracksToCheck;
+    std::set<int64_t> oldRecords;
     int64_t lastNoRecord;
     size_t lastResponseSize = mapCount;
 };

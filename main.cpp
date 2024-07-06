@@ -14,10 +14,14 @@ int main(int argc, char** argv){
 //    po::store(po::parse_command_line(argc, argv, desc), vm);
 //    po::notify(vm);
     requests req;
-    req.ReadTemp("/home/temp.txt");
-    req.PrintWithRecords();
-//    req.GetNoRecordMaps();
-//    req.Compare();
-//    req.SaveTemp("/home/temp.txt");
+    req.LoadTemp("/home/temp.txt");
+    req.LoadTempLeaderboards("/home/leaderboards.txt");
+
+    req.GetNoRecordMaps();
+    req.Compare();
+    req.MakeLeaderboards();
+
+    req.SaveTemp("/home/temp.txt");
+    req.SaveTempLeaderboards("/home/leaderboards.txt");
     return 0;
 }
