@@ -16,12 +16,14 @@ int main(int argc, char** argv){
     requests req;
     req.LoadTemp("/home/temp.txt");
     req.LoadTempLeaderboards("/home/leaderboards.txt");
-
+//
+////    req.PrintLeaderboards();
     req.GetNoRecordMaps();
     req.Compare();
     req.MakeLeaderboards();
 
     req.SaveTemp("/home/temp.txt");
     req.SaveTempLeaderboards("/home/leaderboards.txt");
+    req.PrintLeaderboards();
     return 0;
 }

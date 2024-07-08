@@ -27,6 +27,7 @@ public:
 
     void PrintSet();
     void PrintMap();
+    void PrintLeaderboards();
     void PrintWithRecords();
 private:
     std::map<int64_t,std::vector<trackTag>> noRecordTracks;

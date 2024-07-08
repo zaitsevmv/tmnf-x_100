@@ -16,6 +16,39 @@
 
 namespace pt = boost::property_tree;
 
+std::string toString(trackTag tag){
+    switch (tag) {
+        case Normal:
+            return "Normal";
+        case Stunt:
+            return "Stunt";
+        case Maze:
+            return "Maze";
+        case Offroad:
+            return "Offroad";
+        case Laps:
+            return "Laps";
+        case Fullspeed:
+            return "Fullspeed";
+        case LOL:
+            return "LOL";
+        case Tech:
+            return "Tech";
+        case SpeedTech:
+            return "SpeedTech";
+        case RPG:
+            return "RPG";
+        case PressForward:
+            return "PressForward";
+        case Trial:
+            return "Trial";
+        case Grass:
+            return "Grass";
+        case All:
+            return "All";
+    }
+}
+
 void requests::SaveTemp(const std::string &tempFile) {
     std::ofstream fout(tempFile);
     auto currentTime = std::chrono::system_clock::now();
@@ -263,15 +296,15 @@ void requests::PrintWithRecords() {
 }
 
 void requests::MakeLeaderboards() {
-    for (int a = Normal; a != All; a++){
-        leaderboards.emplace(static_cast<trackTag>(a), std::map<int64_t, std::pair<std::string, int>>());
+    if(leaderboards.empty()){
+        for (int a = Normal; a >= All; a++){
+            leaderboards.emplace(static_cast<trackTag>(a), std::map<int64_t, std::pair<std::string, int>>());
+        }
     }
     std::cout << "Replays to check: " << tracksToCheck.size() << std::endl;
     std::cout << "Getting replays." << std::endl;
     for(const auto& a: tracksToCheck){
-        if(!oldRecords.contains(a)){
-            GetReplaysFromMap(a);
-        }
+        GetReplaysFromMap(a);
     }
     std::cout << "Got replays." << std::endl;
 }
@@ -292,6 +325,11 @@ std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
                         }
                         if(k == "Name"){
                             finisherName = val.get_value<std::string>();
+                            for(auto& a: finisherName){
+                                if(a == ' '){
+                                    a = '_';
+                                }
+                            }
                         }
                         if(!finisherName.empty() && userId > 0){
                             return {userId, finisherName};
@@ -347,7 +385,7 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
             std::cout << trackId << std::endl;
             auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
             UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
-            return;
+            break;
         }
         curl_easy_cleanup(curl);
     }
@@ -407,4 +445,25 @@ void requests::LoadTempLeaderboards(const std::string &tempFile) {
         }
     }
     fin.close();
+}
+
+void requests::PrintLeaderboards() {
+    for(const auto& [tag, subTable]: leaderboards){
+        std::vector<std::pair<int64_t, std::pair<std::string, int>>> data(subTable.begin(), subTable.end());
+        std::sort(data.begin(), data.end(),[](const auto& a, const auto& b){
+            return a.second.second > b.second.second;
+        });
+        if(tag == All){
+            int count = 0;
+            for(const auto& a: data){
+                count += a.second.second;
+            }
+            std::cout << "\nLeaderboard entries: " << count << std::endl;
+        }
+        data.resize(10);
+        std::cout << "###############\n" << toString(tag) << "\n###############" << std::endl;
+        for(const auto& [playerId, player]: data){
+            std::cout << player.first << ' ' << player.second << std::endl;
+        }
+    }
 }
