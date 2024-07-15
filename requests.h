@@ -23,6 +23,7 @@ public:
     void MakeLeaderboards();
     void UpdateLeaderboards(int64_t trackId, const std::string& finisherName, const int64_t finisherId);
     void SaveTempLeaderboards(const std::string& tempFile);
+    void SaveDataForFrontend(const std::string& tempFile);
     void LoadTempLeaderboards(const std::string& tempFile);
 
     void PrintSet();
@@ -36,6 +37,7 @@ private:
     std::vector<int64_t> tracksToCheck;
     std::set<int64_t> oldRecords;
     int64_t lastNoRecord;
+    int noRec = 0;
     size_t lastResponseSize = mapCount;
 };
 

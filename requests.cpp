@@ -190,6 +190,7 @@ void requests::GetNoRecordMaps() {
             uc.UpdateParams(params);
             std::cout << noRecordTracks.size() << std::endl;
         }
+        noRec = noRecordTracks.size();
         std::cout << "Got tracks." << std::endl;
         curl_easy_cleanup(curl);
     }
@@ -466,4 +467,27 @@ void requests::PrintLeaderboards() {
             std::cout << player.first << ' ' << player.second << std::endl;
         }
     }
+}
+
+void requests::SaveDataForFrontend(const std::string &tempFile) {
+    std::ofstream fout(tempFile);
+    auto currentTime = std::chrono::system_clock::now();
+    std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
+    fout << std::ctime(&time);
+    fout << noRec << std::endl;
+    fout << oldRecords.size()+tracksToCheck.size() << std::endl;
+    for(const auto& [tag, subTable]: leaderboards){
+        std::vector<std::pair<int64_t, std::pair<std::string, int>>> data(subTable.begin(), subTable.end());
+        std::sort(data.begin(), data.end(),[](const auto& a, const auto& b){
+            return a.second.second > b.second.second;
+        });
+        data.resize(10);
+        fout << toString(tag) << std::endl;
+        for(const auto& [playerId, player]: data){
+            if(player.second == 0) break;
+            fout << player.first << ' ' << player.second << std::endl;
+        }
+        fout << "=" << std::endl;
+    }
+    fout.close();
 }

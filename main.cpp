@@ -23,6 +23,7 @@ int main(int argc, char** argv){
     req.MakeLeaderboards();
 
     req.SaveTemp("/home/temp.txt");
+    req.SaveDataForFrontend("/home/data_to_frontend.txt");
     req.SaveTempLeaderboards("/home/leaderboards.txt");
     req.PrintLeaderboards();
     return 0;
