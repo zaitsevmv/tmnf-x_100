@@ -49,6 +49,7 @@ std::string toString(trackTag tag){
         case All:
             return "All";
     }
+    return "";
 }
 
 void requests::SaveTemp(const std::string &tempFile) {
@@ -348,6 +349,7 @@ std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
             }
         }
     }
+    return {0, ""};
 }
 
 void requests::GetReplaysFromMap(const int64_t trackId) {
