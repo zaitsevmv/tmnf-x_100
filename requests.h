@@ -19,6 +19,9 @@ public:
     void GetReplaysFromMap(const int64_t trackId);
     void GetNoRecordJSON(const std::string& jsonFile);
 
+    void LoadExtra(const std::string& tempFile);
+    void AddExtra();
+
     void Compare();
     void MakeLeaderboards();
     void UpdateLeaderboards(int64_t trackId, const std::string& finisherName, const int64_t finisherId);
@@ -36,6 +39,7 @@ private:
     std::map<trackTag, std::map<int64_t, std::pair<std::string, int>>> leaderboards;
     std::vector<int64_t> tracksToCheck;
     std::set<int64_t> oldRecords;
+    std::map<int64_t,std::vector<trackTag>> extraTracks;
     int64_t lastNoRecord;
     int noRec = 0;
     size_t lastResponseSize = mapCount;

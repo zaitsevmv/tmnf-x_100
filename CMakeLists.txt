@@ -10,8 +10,6 @@ find_package(Boost 1.85.0 REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
 
-message(Boost_LIBRARIES="${Boost_LIBRARIES}")
-
 target_link_libraries(Requests
         ${Boost_LIBRARIES}
         OpenSSL::Crypto

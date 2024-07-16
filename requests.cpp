@@ -4,6 +4,8 @@
 
 #include "requests.h"
 
+#include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <ctime>
@@ -188,10 +190,10 @@ void requests::GetNoRecordMaps() {
                      {"inhasrecord", 0},
                      {"after", lastNoRecord}};
             uc.UpdateParams(params);
-            std::cout << noRecordTracks.size() << std::endl;
         }
+        std::remove("/home/response.json");
         noRec = noRecordTracks.size();
-        std::cout << "Got tracks." << std::endl;
+        std::cout << "Got " << noRecordTracks.size() <<  " tracks." << std::endl;
         curl_easy_cleanup(curl);
     }
 
@@ -253,6 +255,12 @@ void requests::Compare() {
     std::cout << std::endl;
     if(allTracks.empty()){
         for(auto& [id, tags]: noRecordTracks){
+            allTracks.emplace_back(id, false, tags);
+        }
+        return;
+    }
+    if(!extraTracks.empty()){
+        for(auto& [id, tags]: extraTracks){
             allTracks.emplace_back(id, false, tags);
         }
         return;
@@ -383,7 +391,6 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
             if(abc.find("\"More\"") >= abc.size()){
                 continue;
             }
-            std::cout << trackId << std::endl;
             auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
             UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
             break;
@@ -490,4 +497,67 @@ void requests::SaveDataForFrontend(const std::string &tempFile) {
         fout << "=" << std::endl;
     }
     fout.close();
+}
+
+void requests::AddExtra() {
+    const std::string host = "tmnf.exchange";
+    const std::string target = "/api/tracks";
+
+    CURL* curl;
+    CURLcode res;
+    std::string readBuffer;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if(curl) {
+        std::cout << "Getting extra tracks." << std::endl;
+        for(const auto& [id, tags]: extraTracks){
+            std::map<std::string, param_cell> params =
+                    {{"fields", std::vector<std::string>{"TrackId", "Tags"}},
+                     {"count", 1} ,
+                     {"id", id}};
+            httpsURLConstructor uc(host, target, params);
+            curl_easy_setopt(curl, CURLOPT_URL, uc.GetURL().c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            res = curl_easy_perform(curl);
+
+            if(res != CURLE_OK){
+                std::cerr << curl_easy_strerror(res) << "curl_easy_perform() failed: %s\n" << std::endl;
+                continue;
+            }
+
+            std::fstream json_out;
+            json_out.open("/home/response.json", std::ios_base::out);
+            json_out << readBuffer << std::endl;
+            readBuffer.clear();
+            json_out.close();
+            std::fstream json_in("/home/response.json");
+            std::string abc;
+            json_in >> abc;
+            if(abc.find("\"More\"") >= abc.size()){
+                continue;
+            }
+            GetNoRecordJSON("/home/response.json");
+            std::cout << noRecordTracks.size() << std::endl;
+        }
+        std::remove("/home/response.json");
+        std::cout << "Got extra tracks." << std::endl;
+        curl_easy_cleanup(curl);
+    }
+
+    curl_global_cleanup();
+}
+
+void requests::LoadExtra(const std::string &tempFile) {
+    std::ifstream fin(tempFile);
+    int64_t trackId = 0;
+    while(fin >> trackId){
+        extraTracks.emplace(trackId, std::vector<trackTag>());
+    }
+    for(const auto& a: allTracks){
+        if(extraTracks.contains(get<0>(a)))
+            extraTracks.erase(get<0>(a));
+    }
+    std::cout << "Extra tracks: " << extraTracks.size();
+    fin.close();
 }

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMNF-X 100%</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<h1>TMNF-X 100%</h1>
+<div>
+    <h2>Tracks Without Replays</h2>
+    <p id="tracks-without-replays"></p>
+</div>
+<div>
+    <h2>Tracks done</h2>
+    <p id="replays-since-last-update"></p>
+    <p>Last Update: <span id="last-update"></span></p>
+</div>
+<div>
+    <h2>Leaderboards</h2>
+</div>
+<div id="leaderboards">
+    <!-- Tables will be inserted here -->
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Fetch and display tracks without replays
+        $.getJSON('/api/tracks_without_replays', function(data) {
+            $('#tracks-without-replays').text(data.count);
+        });
+
+        // Fetch and display replays since last update
+        $.getJSON('/api/replays_since_last_update', function(data) {
+            $('#replays-since-last-update').text(data.count);
+            $('#last-update').text(data.last_update);
+        });
+
+        // Fetch and display leaderboards by tags
+        $.getJSON('/api/leaderboards', function(data) {
+            var leaderboardsDiv = $('#leaderboards');
+            leaderboardsDiv.empty(); // Clear any existing content
+
+            for (var category in data) {
+                if (data.hasOwnProperty(category)) {
+                    var categoryTable = '<div><h3>' + category + '</h3>';
+                    categoryTable += '<table><thead><tr><th class="player-column">Player</th><th class="score-column">Score</th></tr></thead><tbody>';
+
+                    var sortedPlayers = Object.entries(data[category]).sort((a, b) => b[1] - a[1]);
+                    sortedPlayers.forEach(function(playerScore) {
+                        categoryTable += '<tr><td>' + playerScore[0] + '</td><td>' + playerScore[1] + '</td></tr>';
+                    });
+
+                    categoryTable += '</tbody></table></div>';
+                    leaderboardsDiv.append(categoryTable);
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>
