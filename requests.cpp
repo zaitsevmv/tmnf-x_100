@@ -408,12 +408,14 @@ void requests::UpdateLeaderboards(const int64_t trackId, const std::string &fini
         if(id == trackId){
             if(leaderboards[All].find(finisherId) != leaderboards[All].end()){
                 leaderboards[All][finisherId].second++;
+                leaderboards[All][finisherId].first = finisherName;
             } else{
                 leaderboards[All].emplace(finisherId, std::make_pair(finisherName, 1));
             }
             for(const auto& a: tags){
                 if(leaderboards[a].contains(finisherId)){
                     leaderboards[a][finisherId].second++;
+                    leaderboards[a][finisherId].first = finisherName;
                 } else{
                     leaderboards[a].emplace(finisherId, std::make_pair(finisherName, 1));
                 }
