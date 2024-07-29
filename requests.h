@@ -24,7 +24,8 @@ public:
 
     void Compare();
     void MakeLeaderboards();
-    void UpdateLeaderboards(int64_t trackId, const std::string& finisherName, const int64_t finisherId);
+    void UpdateLeaderboards(int64_t trackId, const std::string& finisherName, int64_t finisherId);
+    void UpdateLeaderboardsNames();
     void SaveTempLeaderboards(const std::string& tempFile);
     void SaveDataForFrontend(const std::string& tempFile);
     void LoadTempLeaderboards(const std::string& tempFile);

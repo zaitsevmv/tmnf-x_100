@@ -34,6 +34,7 @@ int main(int argc, char** argv){
     req.GetNoRecordMaps();
     req.Compare();
     req.MakeLeaderboards();
+    req.UpdateLeaderboardsNames();
 
     req.SaveTemp(dataFile);
     req.SaveDataForFrontend(frontendFile);

@@ -415,12 +415,22 @@ void requests::UpdateLeaderboards(const int64_t trackId, const std::string &fini
             for(const auto& a: tags){
                 if(leaderboards[a].contains(finisherId)){
                     leaderboards[a][finisherId].second++;
-                    leaderboards[a][finisherId].first = finisherName;
+                    leaderboards[a][finisherId].first = leaderboards[All][finisherId].first;
                 } else{
                     leaderboards[a].emplace(finisherId, std::make_pair(finisherName, 1));
                 }
             }
             return;
+        }
+    }
+}
+
+void requests::UpdateLeaderboardsNames() {
+    for(const auto& [id, name_count]: leaderboards[All]){
+        for(int tag = Normal; tag < All; tag++){
+            if(leaderboards[static_cast<trackTag>(tag)][id].first != name_count.first){
+                leaderboards[static_cast<trackTag>(tag)][id].first = name_count.first;
+            }
         }
     }
 }
