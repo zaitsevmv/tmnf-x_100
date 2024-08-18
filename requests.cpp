@@ -368,6 +368,7 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
     curl = curl_easy_init();
     if(curl) {
         httpsURLConstructor uc(host, target, params);
+        int attempts = 0;
         while(true){
             curl_easy_setopt(curl, CURLOPT_URL, uc.GetURL().c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -387,10 +388,11 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
             std::fstream json_in("/home/response_replay.json");
             std::string abc;
             json_in >> abc;
-            if(abc.find("\"Type\"") < abc.size()){
+            if(attempts >= 5 || abc.find("\"Type\"") < abc.size() || abc.find("\"type\"") < abc.size()){
                 return;
             }
             if(abc.find("\"More\"") >= abc.size()){
+                attempts++;
                 continue;
             }
             auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
