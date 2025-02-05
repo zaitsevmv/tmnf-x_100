@@ -5,6 +5,8 @@
 #ifndef TMNF_X_100_REQUESTS_H
 #define TMNF_X_100_REQUESTS_H
 
+#include <mutex>
+
 #include "boost/program_options.hpp"
 
 constexpr int mapCount = 1000;
@@ -44,6 +46,8 @@ private:
     int64_t lastNoRecord;
     int noRec = 0;
     size_t lastResponseSize = mapCount;
+
+    std::mutex leaderboardMutex;
 };
 
 

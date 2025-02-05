@@ -2,7 +2,7 @@
 // Created by Matvey on 04.07.2024.
 //
 
-#include "requests.h"
+#include "requests.hpp"
 
 #include <cstdint>
 #include <cstdlib>
@@ -174,17 +174,17 @@ void requests::GetNoRecordMaps() {
             }
 
             std::fstream json_out;
-            json_out.open("/home/response.json", std::ios_base::out);
+            json_out.open("data/response.json", std::ios_base::out);
             json_out << readBuffer << std::endl;
             readBuffer.clear();
             json_out.close();
-            std::fstream json_in("/home/response.json");
+            std::fstream json_in("data/response.json");
             std::string abc;
             json_in >> abc;
             if(abc.find("\"More\"") >= abc.size()){
                 continue;
             }
-            GetNoRecordJSON("/home/response.json");
+            GetNoRecordJSON("data/response.json");
             params =
                     {{"fields", std::vector<std::string>{"TrackId", "Tags"}},
                      {"count", mapCount},
@@ -192,7 +192,7 @@ void requests::GetNoRecordMaps() {
                      {"after", lastNoRecord}};
             uc.UpdateParams(params);
         }
-        std::remove("/home/response.json");
+        std::remove("data/response.json");
         noRec = noRecordTracks.size();
         std::cout << "Got " << noRecordTracks.size() <<  " tracks." << std::endl;
         curl_easy_cleanup(curl);
@@ -379,13 +379,13 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
                 std::cerr << curl_easy_strerror(res) << "curl_easy_perform() failed: %s\n" << std::endl;
                 continue;
             }
-
+            std::string responseJsonPath = "data/response_" + std::to_string(trackId) + "_replay.json";
             std::fstream json_out;
-            json_out.open("/home/response_replay.json", std::ios_base::out);
+            json_out.open(responseJsonPath, std::ios_base::out);
             json_out << readBuffer << std::endl;
             readBuffer.clear();
             json_out.close();
-            std::fstream json_in("/home/response_replay.json");
+            std::fstream json_in(responseJsonPath);
             std::string abc;
             json_in >> abc;
             if(attempts >= 5 || abc.find("\"Type\"") < abc.size() || abc.find("\"type\"") < abc.size()){
@@ -395,8 +395,9 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
                 attempts++;
                 continue;
             }
-            auto finisher_id_name = GetFinisherIdName("/home/response_replay.json");
+            auto finisher_id_name = GetFinisherIdName(responseJsonPath);
             UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
+            std::remove(responseJsonPath.c_str());
             break;
         }
         curl_easy_cleanup(curl);
@@ -406,6 +407,7 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
 }
 
 void requests::UpdateLeaderboards(const int64_t trackId, const std::string &finisherName, const int64_t finisherId) {
+    leaderboardMutex.lock();
     for(const auto& [id, beaten, tags]: allTracks){
         if(id == trackId){
             if(leaderboards[All].find(finisherId) != leaderboards[All].end()){
@@ -422,9 +424,11 @@ void requests::UpdateLeaderboards(const int64_t trackId, const std::string &fini
                     leaderboards[a].emplace(finisherId, std::make_pair(finisherName, 1));
                 }
             }
+            leaderboardMutex.unlock();
             return;
         }
     }
+    leaderboardMutex.unlock();
 }
 
 void requests::UpdateLeaderboardsNames() {
@@ -543,20 +547,20 @@ void requests::AddExtra() {
             }
 
             std::fstream json_out;
-            json_out.open("/home/response.json", std::ios_base::out);
+            json_out.open("data/response.json", std::ios_base::out);
             json_out << readBuffer << std::endl;
             readBuffer.clear();
             json_out.close();
-            std::fstream json_in("/home/response.json");
+            std::fstream json_in("data/response.json");
             std::string abc;
             json_in >> abc;
             if(abc.find("\"More\"") >= abc.size()){
                 continue;
             }
-            GetNoRecordJSON("/home/response.json");
+            GetNoRecordJSON("data/response.json");
             std::cout << noRecordTracks.size() << std::endl;
         }
-        std::remove("/home/response.json");
+        std::remove("data/response.json");
         std::cout << "Got extra tracks." << std::endl;
         curl_easy_cleanup(curl);
     }
