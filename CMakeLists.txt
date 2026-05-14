@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 add_executable(Setup main.cpp)
 add_library(Requests STATIC requests.cpp requests.hpp)
 
-find_package(Boost 1.85.0 REQUIRED)
+find_package(Boost 1.83.0 REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
 

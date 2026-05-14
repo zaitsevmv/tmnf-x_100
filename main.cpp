@@ -8,25 +8,7 @@
 
 #include "requests.hpp"
 
-//namespace po = boost::program_options;
-
-int main(int argc, char** argv){
-//    po::options_description desc("Options");
-//    desc.add_options()
-//            ("data", po::value<std::string>()->default_value("/home/temp.txt"), "path to data file")
-//            ("leaders", po::value<std::string>()->default_value("/home/leaderboards.txt"), "path to leaderboards file")
-//            ("front", po::value<std::string>()->default_value("/home/temp.txt"), "path to frontend data file")
-//            ("reset", "delete all data");
-//    po::variables_map vm;
-//    po::store(po::parse_command_line(argc, argv, desc), vm);
-//    try {
-//        po::notify(vm);
-//    } catch (...){
-//        return 2;
-//    }
-//    std::string dataFile = vm["data"].as<std::string>();
-//    std::string leadersFile = vm["data"].as<std::string>();
-//    std::string frontendFile = vm["data"].as<std::string>();
+int main(){
     std::string dataFile = "data/temp.txt";
     std::string leadersFile = "data/leaderboards.txt";
     std::string frontendFile = "data/data_to_frontend.txt";
@@ -54,9 +36,9 @@ int main(int argc, char** argv){
 
     req.UpdateLeaderboardsNames();
 
-    // req.SaveTemp(dataFile);
-    // req.SaveDataForFrontend(frontendFile);
-    // req.SaveTempLeaderboards(leadersFile);
-    // req.PrintLeaderboards();
+    req.SaveTemp(dataFile);
+    req.SaveDataForFrontend(frontendFile);
+    req.SaveTempLeaderboards(leadersFile);
+    req.PrintLeaderboards();
     return 0;
 }

@@ -4,6 +4,10 @@
 
 #include "requests.hpp"
 
+#include <boost/json/stream_parser.hpp>
+#include <boost/json/impl/parse.ipp>
+#include <boost/json/impl/serialize.ipp>
+#include <boost/json/value.hpp>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -12,11 +16,10 @@
 #include <chrono>
 #include <variant>
 
-#include "curl/curl.h"
-#include "boost/property_tree/ptree.hpp"
-#include "boost/property_tree/json_parser.hpp"
+#include <curl/curl.h>
+#include <boost/json/src.hpp>
 
-namespace pt = boost::property_tree;
+using namespace boost;
 
 std::string toString(trackTag tag){
     switch (tag) {
@@ -203,31 +206,24 @@ void requests::GetNoRecordMaps() {
 
 void requests::GetNoRecordJSON(const std::string& jsonFile) {
     std::ifstream file(jsonFile);
-    pt::ptree p;
-    pt::read_json(file, p);
-    for (const auto& [key, value]: p) {
-        if(key == "Results"){
-            lastResponseSize = value.size();
-            for (const auto& a: value) {
-                std::pair<int64_t,std::vector<trackTag>> newTrack;
-                for (const auto& [k, val]: a.second) {
-                    if(k == "TrackId"){
-                        newTrack.first = val.get_value<int64_t>();
-                        lastNoRecord = newTrack.first;
-                    } else if(k == "Tags"){
-                        std::vector<trackTag> tags;
-                        for(const auto& t: val){
-                            tags.push_back(static_cast<trackTag>(t.second.get_value<int>()));
-                        }
-                        newTrack.second = tags;
-                        noRecordTracks.insert(newTrack);
-                    }
-                }
-            }
-            noRecordTracks.erase(0);
-            return;
+    json::value jv = boost::json::parse(file);
+    json::value resultsValue = jv.at("Results");
+    lastResponseSize = resultsValue.as_array().size();
+    for (const auto& result: resultsValue.as_array()) {
+        std::pair<int64_t,std::vector<trackTag>> newTrack;
+        json::value trackId = result.at("TrackId");
+        newTrack.first = trackId.as_int64();
+        lastNoRecord = newTrack.first;
+
+        json::value trackTags = result.at("Tags");
+        std::vector<trackTag> tags;
+        for(const auto& tag: trackTags.as_array()){
+            tags.push_back(static_cast<trackTag>(tag.as_int64()));
         }
+        newTrack.second = tags;
+        noRecordTracks.insert(newTrack);
     }
+    noRecordTracks.erase(0);
 }
 
 void requests::PrintSet() {
@@ -321,33 +317,21 @@ void requests::MakeLeaderboards() {
 
 std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
     std::ifstream file(jsonFile);
-    pt::ptree p;
-    pt::read_json(file, p);
-    for (const auto& [key, value]: p) {
-        if(key == "Results"){
-            for(const auto& a: value) {
-                for(const auto& b: a.second) {
-                    int64_t userId{0};
-                    std::string finisherName;
-                    for(const auto& [k, val]: b.second) {
-                        if(k == "UserId"){
-                            userId = val.get_value<int64_t>();
-                        }
-                        if(k == "Name"){
-                            finisherName = val.get_value<std::string>();
-                            for(auto& a: finisherName){
-                                if(a == ' '){
-                                    a = '_';
-                                }
-                            }
-                        }
-                        if(!finisherName.empty() && userId > 0){
-                            return {userId, finisherName};
-                        }
-                    }
-                }
+    json::value jv = json::parse(file);
+    json::value results = jv.at("Results");
+    for(const auto& res: results.as_array()) {
+        json::value trackFinisher = res.at("User");
+        int64_t userId = trackFinisher.at("UserId").as_int64();
+        std::string finisherName = trackFinisher.at("Name").as_string().c_str();
+        for(auto& c: finisherName){
+            if(c == ' '){
+                c = '_';
             }
         }
+        if(!finisherName.empty() && userId > 0){
+            return {userId, finisherName};
+        }
+        break;
     }
     return {0, ""};
 }
