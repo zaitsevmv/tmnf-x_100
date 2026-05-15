@@ -10,11 +10,15 @@
 
 int main(){
     std::string dataFile = "data/temp.txt";
-    std::string leadersFile = "data/leaderboards.txt";
-    std::string frontendFile = "data/data_to_frontend.txt";
+    std::string leadersFileByTag = "data/leaderboards_tag.txt";
+    std::string leadersFileByDifficulty = "data/leaderboards_difficulty.txt";
+    std::string frontendFileTag = "data/data_to_frontend_tag.txt";
+    std::string frontendFileDifficulty = "data/data_to_frontend_difficulty.txt";
+
     requests req;
     req.LoadTemp(dataFile);
-    req.LoadTempLeaderboards(leadersFile);
+    req.LoadTempLeaderboardsByTag(leadersFileByTag);
+    req.LoadTempLeaderboardsByDifficulty(leadersFileByDifficulty);
 
     auto start = std::chrono::system_clock::now();
     std::time_t startTime = std::chrono::system_clock::to_time_t(start);
@@ -37,8 +41,10 @@ int main(){
     req.UpdateLeaderboardsNames();
 
     req.SaveTemp(dataFile);
-    req.SaveDataForFrontend(frontendFile);
-    req.SaveTempLeaderboards(leadersFile);
+    req.SaveDataForFrontendByTag(frontendFileTag);
+    req.SaveDataForFrontendByTag(frontendFileDifficulty);
+    req.SaveTempLeaderboardsByTag(leadersFileByTag);
+    req.SaveTempLeaderboardsByDifficulty(leadersFileByDifficulty);
     req.PrintLeaderboards();
     return 0;
 }

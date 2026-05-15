@@ -4,6 +4,7 @@
 
 #include "requests.hpp"
 
+#include <atomic>
 #include <boost/json/stream_parser.hpp>
 #include <boost/json/impl/parse.ipp>
 #include <boost/json/impl/serialize.ipp>
@@ -14,10 +15,14 @@
 #include <fstream>
 #include <ctime>
 #include <chrono>
+#include <mutex>
+#include <numeric>
+#include <thread>
 #include <variant>
 
 #include <curl/curl.h>
 #include <boost/json/src.hpp>
+#include <vector>
 
 using namespace boost;
 
@@ -55,13 +60,27 @@ std::string toString(trackTag tag){
     return "";
 }
 
+std::string toString(TrackDifficulty difficulty){
+    switch (difficulty) {
+        case TrackDifficulty::Beginner:
+            return "Beginner";
+        case TrackDifficulty::Intermediate:
+            return "Intermediate";
+        case TrackDifficulty::Expert:
+            return "Expert";
+        case TrackDifficulty::Lunatic:
+            return "Lunatic";
+    }
+    return "";
+}
+
 void requests::SaveTemp(const std::string &tempFile) {
     std::ofstream fout(tempFile);
     auto currentTime = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
     fout << std::ctime(&time) << std::endl;
-    for(const auto& [id, beaten, tags]: allTracks){
-        fout << id << ' ' << beaten << std::endl;
+    for(const auto& [id, beaten, tags, difficulty]: allTracks){
+        fout << id << ' ' << beaten << ' ' << static_cast<int64_t>(difficulty) << std::endl;
         for(const auto& a: tags){
             fout << a << ' ';
         }
@@ -82,11 +101,15 @@ void requests::LoadTemp(const std::string &tempFile) {
     std::vector<trackTag> tags;
     fin >> id;
     while(fin >> beaten){
+        // int64_t trackDifficulty = 0;
+        // if (false) {
+        //     fin >> trackDifficulty;
+        // }
         int curTag;
         while(fin >> curTag && curTag <= 12){
             tags.push_back(static_cast<trackTag>(curTag));
         }
-        allTracks.emplace_back(id, beaten, tags);
+        allTracks.emplace_back(id, false, tags, static_cast<TrackDifficulty>(TrackDifficulty::Beginner));
         id = curTag;
         tags.clear();
     }
@@ -152,7 +175,7 @@ void requests::GetNoRecordMaps() {
     const std::string host = "tmnf.exchange";
     const std::string target = "/api/tracks";
     std::map<std::string, param_cell> params =
-            {{"fields", std::vector<std::string>{"TrackId", "Tags"}},
+            {{"fields", std::vector<std::string>{"TrackId", "Tags", "Difficulty"}},
              {"count", mapCount} ,
              {"inhasrecord", 0}};
 
@@ -189,7 +212,7 @@ void requests::GetNoRecordMaps() {
             }
             GetNoRecordJSON("data/response.json");
             params =
-                    {{"fields", std::vector<std::string>{"TrackId", "Tags"}},
+                    {{"fields", std::vector<std::string>{"TrackId", "Tags", "Difficulty"}},
                      {"count", mapCount},
                      {"inhasrecord", 0},
                      {"after", lastNoRecord}};
@@ -210,27 +233,30 @@ void requests::GetNoRecordJSON(const std::string& jsonFile) {
     json::value resultsValue = jv.at("Results");
     lastResponseSize = resultsValue.as_array().size();
     for (const auto& result: resultsValue.as_array()) {
-        std::pair<int64_t,std::vector<trackTag>> newTrack;
+        TrackStruct newTrack;
         json::value trackId = result.at("TrackId");
-        newTrack.first = trackId.as_int64();
-        lastNoRecord = newTrack.first;
+        newTrack.trackId = trackId.as_int64();
+        lastNoRecord = newTrack.trackId;
 
         json::value trackTags = result.at("Tags");
         std::vector<trackTag> tags;
         for(const auto& tag: trackTags.as_array()){
             tags.push_back(static_cast<trackTag>(tag.as_int64()));
         }
-        newTrack.second = tags;
-        noRecordTracks.insert(newTrack);
+
+        json::value trackDifficulty = result.at("Difficulty");
+        newTrack.difficulty = static_cast<TrackDifficulty>(trackDifficulty.as_int64());
+        newTrack.tags = tags;
+        noRecordTracks.emplace(newTrack.trackId, newTrack);
     }
     noRecordTracks.erase(0);
 }
 
 void requests::PrintSet() {
-    for(const auto& a: noRecordTracks){
-        std::cout << a.first;
-        for(const auto& v: a.second){
-            std::cout << ' ' << v;
+    for(const auto& [id, track]: noRecordTracks){
+        std::cout << id;
+        for(const auto& tag: track.tags){
+            std::cout << ' ' << tag;
         }
         std::cout << std::endl;
     }
@@ -238,8 +264,8 @@ void requests::PrintSet() {
 }
 
 void requests::PrintMap() {
-    for(const auto& [id, beaten, tags]: allTracks){
-        std::cout << id << ' ' << beaten << " [ ";
+    for(const auto& [id, beaten, tags, difficulty]: allTracks){
+        std::cout << id << ' ' << beaten << ' ' << static_cast<int64_t>(difficulty) << " [ ";
         for(const auto& a: tags){
             std::cout << a << ' ';
         }
@@ -251,20 +277,20 @@ void requests::PrintMap() {
 void requests::Compare() {
     std::cout << std::endl;
     if(allTracks.empty()){
-        for(auto& [id, tags]: noRecordTracks){
-            allTracks.emplace_back(id, false, tags);
+        for(auto& [id, track]: noRecordTracks){
+            allTracks.emplace_back(id, false, track.tags, track.difficulty);
         }
         return;
     }
     if(!extraTracks.empty()){
-        for(auto& [id, tags]: extraTracks){
-            allTracks.emplace_back(id, false, tags);
+        for(auto& [id, track]: extraTracks){
+            allTracks.emplace_back(id, false, track.tags, track.difficulty);
         }
         return;
     }
     int totalBeaten{0};
     int newBeaten{0};
-    for(auto& [id, beaten, tags]: allTracks){
+    for(auto& [id, beaten, tags, difficulty]: allTracks){
         if(!beaten && !noRecordTracks.contains(id)){
             beaten = true;
             newBeaten++;
@@ -279,8 +305,8 @@ void requests::Compare() {
     std::cout << "################\nTotal beaten: " << totalBeaten << std::endl
         << "New beaten: " << newBeaten << std::endl;
     int newMaps = 0;
-    for(auto& [id, tags]: noRecordTracks){
-        allTracks.emplace_back(id, false, tags);
+    for(auto& [id, track]: noRecordTracks){
+        allTracks.emplace_back(id, false, track.tags, track.difficulty);
         newMaps++;
     }
     std::cout << "New maps: " << newMaps << std::endl << "################" << std::endl;
@@ -288,9 +314,9 @@ void requests::Compare() {
 
 void requests::PrintWithRecords() {
     int totalRecords = 0;
-    for(const auto& [id, beaten, tags]: allTracks){
+    for(const auto& [id, beaten, tags, difficulty]: allTracks){
         if(beaten){
-            std::cout << id << ' ' << beaten << " [ ";
+            std::cout << id << ' ' << beaten << ' ' << static_cast<int64_t>(difficulty) << " [ ";
             for(const auto& a: tags){
                 std::cout << a << ' ';
             }
@@ -302,22 +328,32 @@ void requests::PrintWithRecords() {
 }
 
 void requests::MakeLeaderboards() {
-    if(leaderboards.empty()){
-        for (int a = Normal; a >= All; a++){
-            leaderboards.emplace(static_cast<trackTag>(a), std::map<int64_t, std::pair<std::string, int>>());
-        }
-    }
     std::cout << "Replays to check: " << tracksToCheck.size() << std::endl;
     std::cout << "Getting replays." << std::endl;
-    for(const auto& a: tracksToCheck){
-        GetReplaysFromMap(a);
+    uint batchSize = 32;
+    std::vector<std::thread> batchThreads(batchSize);
+    std::vector<std::atomic_flag> mapStatus(tracksToCheck.size());
+    for (auto j = 0ul; j < batchSize; j++) {
+        batchThreads[j] = std::thread([this, j, &mapStatus]{
+            size_t currentMap = 0;
+            while (currentMap < tracksToCheck.size()) {
+                if (mapStatus[currentMap].test_and_set()) {
+                    currentMap++;
+                    continue;
+                }
+                GetReplaysFromMap(tracksToCheck[currentMap]);
+                currentMap++;
+            }
+        });
+    }
+    for (auto& th: batchThreads) {
+        th.join();
     }
     std::cout << "Got replays." << std::endl;
 }
 
-std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonFile) {
-    std::ifstream file(jsonFile);
-    json::value jv = json::parse(file);
+std::pair<int64_t, std::string> GetFinisherIdName(const std::string &jsonString) {
+    json::value jv = json::parse(jsonString);
     json::value results = jv.at("Results");
     for(const auto& res: results.as_array()) {
         json::value trackFinisher = res.at("User");
@@ -348,98 +384,114 @@ void requests::GetReplaysFromMap(const int64_t trackId) {
     CURLcode res;
     std::string readBuffer;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
     if(curl) {
         httpsURLConstructor uc(host, target, params);
         int attempts = 0;
-        while(true){
+        while(attempts < 3){
             curl_easy_setopt(curl, CURLOPT_URL, uc.GetURL().c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
             res = curl_easy_perform(curl);
 
             if(res != CURLE_OK){
-                std::cerr << curl_easy_strerror(res) << "curl_easy_perform() failed: %s\n" << std::endl;
+                std::cerr << curl_easy_strerror(res) << "curl_easy_perform() failed" << std::endl;
                 continue;
             }
-            std::string responseJsonPath = "data/response_" + std::to_string(trackId) + "_replay.json";
-            std::fstream json_out;
-            json_out.open(responseJsonPath, std::ios_base::out);
-            json_out << readBuffer << std::endl;
-            readBuffer.clear();
-            json_out.close();
-            std::fstream json_in(responseJsonPath);
-            std::string abc;
-            json_in >> abc;
-            if(attempts >= 5 || abc.find("\"Type\"") < abc.size() || abc.find("\"type\"") < abc.size()){
+            if(readBuffer.find("\"Type\"") < readBuffer.size() || readBuffer.find("\"type\"") < readBuffer.size()){
                 return;
             }
-            if(abc.find("\"More\"") >= abc.size()){
+            if(readBuffer.find("\"More\"") >= readBuffer.size()){
                 attempts++;
                 continue;
             }
-            auto finisher_id_name = GetFinisherIdName(responseJsonPath);
+            auto finisher_id_name = GetFinisherIdName(readBuffer);
             UpdateLeaderboards(trackId, finisher_id_name.second, finisher_id_name.first);
-            std::remove(responseJsonPath.c_str());
             break;
         }
         curl_easy_cleanup(curl);
     }
-
-    curl_global_cleanup();
 }
 
 void requests::UpdateLeaderboards(const int64_t trackId, const std::string &finisherName, const int64_t finisherId) {
-    leaderboardMutex.lock();
-    for(const auto& [id, beaten, tags]: allTracks){
+    for(const auto& [id, beaten, tags, difficulty]: allTracks){
         if(id == trackId){
-            if(leaderboards[All].find(finisherId) != leaderboards[All].end()){
-                leaderboards[All][finisherId].second++;
-                leaderboards[All][finisherId].first = finisherName;
+            std::lock_guard<std::mutex> lock(leaderboardsMutex);
+            if(auto iter = leaderboardsByTag[All].find(finisherId); iter != leaderboardsByTag[All].end()){
+                iter->second.finishedMaps++;
+                iter->second.playerName = finisherName;
+                iter->second.playerId = finisherId;
             } else{
-                leaderboards[All].emplace(finisherId, std::make_pair(finisherName, 1));
+                leaderboardsByTag[All].emplace(finisherId, Player{
+                    .playerName = finisherName, .playerId = finisherId, .finishedMaps = 1
+                });
             }
-            for(const auto& a: tags){
-                if(leaderboards[a].contains(finisherId)){
-                    leaderboards[a][finisherId].second++;
-                    leaderboards[a][finisherId].first = leaderboards[All][finisherId].first;
+            for(const auto& tag: tags){
+                if(auto iter = leaderboardsByTag[tag].find(finisherId); iter != leaderboardsByTag[tag].end()){
+                    iter->second.finishedMaps++;
+                    iter->second.playerName = finisherName;
+                    iter->second.playerId = finisherId;
                 } else{
-                    leaderboards[a].emplace(finisherId, std::make_pair(finisherName, 1));
+                    leaderboardsByTag[tag].emplace(finisherId, Player{
+                        .playerName = finisherName, .finishedMaps = 1
+                    });
                 }
             }
-            leaderboardMutex.unlock();
+            if(auto iter = leaderboardsByDifficulty[difficulty].find(finisherId); iter != leaderboardsByTag[All].end()){
+                iter->second.finishedMaps++;
+                iter->second.playerName = finisherName;
+                iter->second.playerId = finisherId;
+            } else{
+                leaderboardsByDifficulty[difficulty].emplace(finisherId, Player{
+                    .playerName = finisherName, .finishedMaps = 1
+                });
+            }
             return;
         }
     }
-    leaderboardMutex.unlock();
 }
 
 void requests::UpdateLeaderboardsNames() {
-    for(const auto& [id, name_count]: leaderboards[All]){
+    for(const auto& [id, name_count]: leaderboardsByTag[All]){
         for(int tag = Normal; tag < All; tag++){
-            if(leaderboards[static_cast<trackTag>(tag)][id].first != name_count.first){
-                leaderboards[static_cast<trackTag>(tag)][id].first = name_count.first;
-            }
+            leaderboardsByTag[static_cast<trackTag>(tag)][id].playerName = name_count.playerName;
+        }
+
+        for(int64_t difficulty = static_cast<int64_t>(TrackDifficulty::Beginner); difficulty <= static_cast<int64_t>(TrackDifficulty::Lunatic); difficulty++){
+            leaderboardsByDifficulty[static_cast<TrackDifficulty>(difficulty)][id].playerName = name_count.playerName;
         }
     }
 }
 
-void requests::SaveTempLeaderboards(const std::string &tempFile) {
+void requests::SaveTempLeaderboardsByTag(const std::string &tempFile) {
     std::ofstream fout(tempFile);
     auto currentTime = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
     fout << std::ctime(&time) << std::endl;
-    for(const auto& [id, subTable]: leaderboards){
+    for(const auto& [id, subTable]: leaderboardsByTag){
         fout << id << ' ' << subTable.size() << std::endl;
         for(const auto& [playerId, player]: subTable){
-            fout << playerId << ' ' << player.first << ' ' << player.second << std::endl;
+            fout << playerId << ' ' << player.playerName << ' ' << player.finishedMaps << std::endl;
         }
     }
     fout.close();
 }
 
-void requests::LoadTempLeaderboards(const std::string &tempFile) {
+void requests::SaveTempLeaderboardsByDifficulty(const std::string &tempFile) {
+    std::ofstream fout(tempFile);
+    auto currentTime = std::chrono::system_clock::now();
+    std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
+    fout << std::ctime(&time) << std::endl;
+    for(const auto& [id, subTable]: leaderboardsByDifficulty){
+        fout << static_cast<int64_t>(id) << ' ' << subTable.size() << std::endl;
+        for(const auto& [playerId, player]: subTable){
+            fout << playerId << ' ' << player.playerName << ' ' << player.finishedMaps << std::endl;
+        }
+    }
+    fout.close();
+}
+
+void requests::LoadTempLeaderboardsByTag(const std::string &tempFile) {
     std::ifstream fin(tempFile);
     std::string time;
     getline(fin, time);
@@ -453,50 +505,106 @@ void requests::LoadTempLeaderboards(const std::string &tempFile) {
             std::string playerName;
             int playerCount;
             fin >> playerId >> playerName >> playerCount;
-            leaderboards[static_cast<trackTag>(tag)].emplace(playerId, std::make_pair(playerName, playerCount));
+            leaderboardsByTag[static_cast<trackTag>(tag)].emplace(playerId, Player{
+                .playerName = playerName, .playerId = playerId, .finishedMaps = playerCount
+            });
+        }
+    }
+    fin.close();
+}
+
+void requests::LoadTempLeaderboardsByDifficulty(const std::string &tempFile) {
+    std::ifstream fin(tempFile);
+    std::string time;
+    getline(fin, time);
+    std::cout << "Last leaderboards update: " << time << std::endl;
+    int64_t difficulty = 0;
+    int n{0};
+    while(fin >> difficulty){
+        fin >> n;
+        for(int i = 0; i < n; i++){
+            int64_t playerId;
+            std::string playerName;
+            int playerCount;
+            fin >> playerId >> playerName >> playerCount;
+            leaderboardsByDifficulty[static_cast<TrackDifficulty>(difficulty)].emplace(playerId, Player{
+                .playerName = playerName, .playerId = playerId, .finishedMaps = playerCount
+            });
         }
     }
     fin.close();
 }
 
 void requests::PrintLeaderboards() {
-    for(const auto& [tag, subTable]: leaderboards){
-        std::vector<std::pair<int64_t, std::pair<std::string, int>>> data(subTable.begin(), subTable.end());
-        std::sort(data.begin(), data.end(),[](const auto& a, const auto& b){
-            return a.second.second > b.second.second;
+    for(const auto& [tag, subTable]: leaderboardsByTag){
+        std::vector<Player> playerData;
+        playerData.reserve(subTable.size());
+        for (const auto& [id, player]: subTable) {
+            playerData.push_back(player);
+        }
+        std::sort(playerData.begin(), playerData.end(),[](const Player& a, const Player& b){
+            return a.finishedMaps > b.finishedMaps;
         });
         if(tag == All){
-            int count = 0;
-            for(const auto& a: data){
-                count += a.second.second;
-            }
+            int count = std::accumulate(playerData.begin(), playerData.end(), 0, [](int init, const Player& pl) {return init + pl.finishedMaps;});
             std::cout << "\nLeaderboard entries: " << count << std::endl;
         }
-        data.resize(10);
+        playerData.resize(10);
         std::cout << "###############\n" << toString(tag) << "\n###############" << std::endl;
-        for(const auto& [playerId, player]: data){
-            std::cout << player.first << ' ' << player.second << std::endl;
+        for(const auto& [playerId, playerName, finishedMaps]: playerData){
+            std::cout << playerName << ' ' << finishedMaps << std::endl;
         }
     }
 }
 
-void requests::SaveDataForFrontend(const std::string &tempFile) {
+void requests::SaveDataForFrontendByTag(const std::string &tempFile) {
     std::ofstream fout(tempFile);
     auto currentTime = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
     fout << std::ctime(&time);
     fout << noRec << std::endl;
     fout << oldRecords.size()+tracksToCheck.size() << std::endl;
-    for(const auto& [tag, subTable]: leaderboards){
-        std::vector<std::pair<int64_t, std::pair<std::string, int>>> data(subTable.begin(), subTable.end());
-        std::sort(data.begin(), data.end(),[](const auto& a, const auto& b){
-            return a.second.second > b.second.second;
+    for(const auto& [tag, subTable]: leaderboardsByTag){
+        std::vector<Player> playerData;
+        playerData.reserve(subTable.size());
+        for (const auto& [id, player]: subTable) {
+            playerData.push_back(player);
+        }
+        std::sort(playerData.begin(), playerData.end(),[](const Player& a, const Player& b){
+            return a.finishedMaps > b.finishedMaps;
         });
-        data.resize(10);
+        playerData.resize(10);
         fout << toString(tag) << std::endl;
-        for(const auto& [playerId, player]: data){
-            if(player.second == 0) break;
-            fout << player.first << ' ' << player.second << std::endl;
+        for(const auto& [playerId, playerName, finishedMaps]: playerData){
+            if(finishedMaps == 0) break;
+            fout << playerName << ' ' << finishedMaps << std::endl;
+        }
+        fout << "=" << std::endl;
+    }
+    fout.close();
+}
+
+void requests::SaveDataForFrontendByDifficulty(const std::string &tempFile) {
+    std::ofstream fout(tempFile);
+    auto currentTime = std::chrono::system_clock::now();
+    std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
+    fout << std::ctime(&time);
+    fout << noRec << std::endl;
+    fout << oldRecords.size()+tracksToCheck.size() << std::endl;
+    for(const auto& [difficulty, subTable]: leaderboardsByDifficulty){
+        std::vector<Player> playerData;
+        playerData.reserve(subTable.size());
+        for (const auto& [id, player]: subTable) {
+            playerData.push_back(player);
+        }
+        std::sort(playerData.begin(), playerData.end(),[](const Player& a, const Player& b){
+            return a.finishedMaps > b.finishedMaps;
+        });
+        playerData.resize(10);
+        fout << toString(difficulty) << std::endl;
+        for(const auto& [playerId, playerName, finishedMaps]: playerData){
+            if(finishedMaps == 0) break;
+            fout << playerName << ' ' << finishedMaps << std::endl;
         }
         fout << "=" << std::endl;
     }
@@ -516,7 +624,7 @@ void requests::AddExtra() {
         std::cout << "Getting extra tracks." << std::endl;
         for(const auto& [id, tags]: extraTracks){
             std::map<std::string, param_cell> params =
-                    {{"fields", std::vector<std::string>{"TrackId", "Tags"}},
+                    {{"fields", std::vector<std::string>{"TrackId", "Tags", "Difficulty"}},
                      {"count", 1} ,
                      {"id", id}};
             httpsURLConstructor uc(host, target, params);
@@ -556,11 +664,12 @@ void requests::LoadExtra(const std::string &tempFile) {
     std::ifstream fin(tempFile);
     int64_t trackId = 0;
     while(fin >> trackId){
-        extraTracks.emplace(trackId, std::vector<trackTag>());
+        extraTracks.emplace(trackId, TrackStruct{});
     }
     for(const auto& a: allTracks){
-        if(extraTracks.contains(get<0>(a)))
+        if(extraTracks.contains(get<0>(a))) {
             extraTracks.erase(get<0>(a));
+        }
     }
     std::cout << "Extra tracks: " << extraTracks.size();
     fin.close();
