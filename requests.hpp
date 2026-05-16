@@ -24,8 +24,10 @@ public:
     void SaveTemp(const std::string& tempFile);
     void LoadTemp(const std::string& tempFile);
     void GetNoRecordMaps();
+    void GetAllMapsForDifficulty();
     void GetReplaysFromMap(const int64_t trackId);
     void GetNoRecordJSON(const std::string& jsonFile);
+    void GetAllMapsForDifficultyJSON(const std::string& jsonFile);
 
     void LoadExtra(const std::string& tempFile);
     void AddExtra();
@@ -50,6 +52,7 @@ private:
         int64_t trackId = 0;
         TrackDifficulty difficulty;
         std::vector<trackTag> tags;
+        bool beaten = false;
     };
 
     struct Player {
@@ -59,7 +62,8 @@ private:
     };
 
     std::unordered_map<int64_t, TrackStruct> noRecordTracks;
-    std::vector<std::tuple<int64_t, bool, std::vector<trackTag>, TrackDifficulty>> allTracks;
+    std::unordered_map<int64_t, TrackStruct> allTracksIfNeeded;
+    std::unordered_map<int64_t, TrackStruct> allTracks;
 
     using leaderboardValue = std::unordered_map<int64_t, Player>;
     std::unordered_map<trackTag, leaderboardValue> leaderboardsByTag;

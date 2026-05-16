@@ -24,6 +24,7 @@ int main(){
     std::time_t startTime = std::chrono::system_clock::to_time_t(start);
     std::cout << "Getting records start time: " << std::ctime(&startTime) << std::endl;
     req.GetNoRecordMaps();
+    req.GetAllMapsForDifficulty();
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsedTime = end-start;
     std::cout << "Elapsed time: " << elapsedTime.count() << std::endl;
