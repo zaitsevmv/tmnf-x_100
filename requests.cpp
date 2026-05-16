@@ -101,15 +101,13 @@ void requests::LoadTemp(const std::string &tempFile) {
     std::vector<trackTag> tags;
     fin >> id;
     while(fin >> beaten){
-        // int64_t trackDifficulty = 0;
-        // if (false) {
-        //     fin >> trackDifficulty;
-        // }
+        int64_t trackDifficulty = 0;
+        fin >> trackDifficulty;
         int curTag;
         while(fin >> curTag && curTag <= 12){
             tags.push_back(static_cast<trackTag>(curTag));
         }
-        allTracks.emplace_back(id, false, tags, static_cast<TrackDifficulty>(TrackDifficulty::Beginner));
+        allTracks.emplace_back(id, false, tags, static_cast<TrackDifficulty>(trackDifficulty));
         id = curTag;
         tags.clear();
     }
@@ -295,10 +293,11 @@ void requests::Compare() {
             beaten = true;
             newBeaten++;
             tracksToCheck.push_back(id);
-        }else if(beaten){
+        } else if(beaten){
             oldRecords.emplace(id);
             totalBeaten ++;
         }
+        difficulty = noRecordTracks[id].difficulty;
         noRecordTracks.erase(id);
     }
     totalBeaten+=newBeaten;
@@ -437,7 +436,7 @@ void requests::UpdateLeaderboards(const int64_t trackId, const std::string &fini
                     });
                 }
             }
-            if(auto iter = leaderboardsByDifficulty[difficulty].find(finisherId); iter != leaderboardsByTag[All].end()){
+            if(auto iter = leaderboardsByDifficulty[difficulty].find(finisherId); iter != leaderboardsByDifficulty[difficulty].end()){
                 iter->second.finishedMaps++;
                 iter->second.playerName = finisherName;
                 iter->second.playerId = finisherId;
@@ -575,7 +574,7 @@ void requests::SaveDataForFrontendByTag(const std::string &tempFile) {
         });
         playerData.resize(10);
         fout << toString(tag) << std::endl;
-        for(const auto& [playerId, playerName, finishedMaps]: playerData){
+        for(const auto& [playerName, playerId, finishedMaps]: playerData){
             if(finishedMaps == 0) break;
             fout << playerName << ' ' << finishedMaps << std::endl;
         }
@@ -602,7 +601,7 @@ void requests::SaveDataForFrontendByDifficulty(const std::string &tempFile) {
         });
         playerData.resize(10);
         fout << toString(difficulty) << std::endl;
-        for(const auto& [playerId, playerName, finishedMaps]: playerData){
+        for(const auto& [playerName, playerId, finishedMaps]: playerData){
             if(finishedMaps == 0) break;
             fout << playerName << ' ' << finishedMaps << std::endl;
         }

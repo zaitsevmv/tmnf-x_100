@@ -17,8 +17,8 @@ int main(){
 
     requests req;
     req.LoadTemp(dataFile);
-    req.LoadTempLeaderboardsByTag(leadersFileByTag);
-    req.LoadTempLeaderboardsByDifficulty(leadersFileByDifficulty);
+    // req.LoadTempLeaderboardsByTag(leadersFileByTag);
+    // req.LoadTempLeaderboardsByDifficulty(leadersFileByDifficulty);
 
     auto start = std::chrono::system_clock::now();
     std::time_t startTime = std::chrono::system_clock::to_time_t(start);
@@ -42,7 +42,7 @@ int main(){
 
     req.SaveTemp(dataFile);
     req.SaveDataForFrontendByTag(frontendFileTag);
-    req.SaveDataForFrontendByTag(frontendFileDifficulty);
+    req.SaveDataForFrontendByDifficulty(frontendFileDifficulty);
     req.SaveTempLeaderboardsByTag(leadersFileByTag);
     req.SaveTempLeaderboardsByDifficulty(leadersFileByDifficulty);
     req.PrintLeaderboards();
