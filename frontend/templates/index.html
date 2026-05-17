@@ -9,55 +9,119 @@
 </head>
 <body>
 <h1>TMNF-X 100%</h1>
-<div>
-    <h2>Tracks Without Replays</h2>
-    <p id="tracks-without-replays"></p>
+
+<div class="header-text">
+    <div>
+        <h2>Tracks Without Replays</h2>
+        <p id="tracks-without-replays"></p>
+    </div>
+    <div>
+        <h2>Tracks done</h2>
+        <p id="replays-since-last-update"></p>
+        <p>Last Update: <span id="last-update"></span></p>
+    </div>
+
+    <div class="toggle-container">
+        <button id="toggle-all" class="toggle-btn active">All</button>
+        <button id="toggle-original" class="toggle-btn">Tag</button>
+        <button id="toggle-difficulties" class="toggle-btn">Difficulty</button>
+    </div>
 </div>
+
 <div>
-    <h2>Tracks done</h2>
-    <p id="replays-since-last-update"></p>
-    <p>Last Update: <span id="last-update"></span></p>
-</div>
-<div>
-    <h2>Leaderboards</h2>
+    <h2 id="categories-title">Leaderboards by Tag</h2>
 </div>
 <div id="leaderboards">
-    <!-- Tables will be inserted here -->
+    <!-- Category tables inserted here -->
 </div>
 
 <script>
-    $(document).ready(function() {
-        // Fetch and display tracks without replays
-        $.getJSON('/api/tracks_without_replays', function(data) {
-            $('#tracks-without-replays').text(data.count);
-        });
-
-        // Fetch and display replays since last update
-        $.getJSON('/api/replays_since_last_update', function(data) {
-            $('#replays-since-last-update').text(data.count);
-            $('#last-update').text(data.last_update);
-        });
-
-        // Fetch and display leaderboards by tags
-        $.getJSON('/api/leaderboards', function(data) {
+    let currentSource = 'all';
+    
+    function fetchLeaderboards() {
+        // ✅ Hide/show stats based on source
+        if (currentSource === 'original') {
+            $('#stats-section').show();
+            $('#categories-title').text('Leaderboards by Tag');
+        } else if (currentSource === 'difficulties') {
+            $('#stats-section').show();
+            $('#categories-title').text('Leaderboards by Difficulty');
+        } else if (currentSource === 'all') {
+            $('#stats-section').show();
+            $('#categories-title').text('Leaderboards');
+        }
+        
+        $.getJSON('/api/leaderboards?source=' + currentSource, function(data) {
             var leaderboardsDiv = $('#leaderboards');
-            leaderboardsDiv.empty(); // Clear any existing content
-
-            for (var category in data) {
-                if (data.hasOwnProperty(category)) {
-                    var categoryTable = '<div><h3>' + category + '</h3>';
-                    categoryTable += '<table><thead><tr><th class="player-column">Player</th><th class="score-column">Score</th></tr></thead><tbody>';
-
-                    var sortedPlayers = Object.entries(data[category]).sort((a, b) => b[1] - a[1]);
+            leaderboardsDiv.empty();
+            
+            if (currentSource !== 'all') {
+                for (var category in data.leaderboards) {
+                    if (category && category != 'Unknown' && data.leaderboards.hasOwnProperty(category) && Object.entries(data.leaderboards[category]).length > 0) {
+                        var categoryTable = '<div><h3>' + category + '</h3>';
+                        categoryTable += '<table><thead><tr><th class="player-column">Player</th><th class="score-column">Score</th></tr></thead><tbody>';
+                        
+                        var sortedPlayers = Object.entries(data.leaderboards[category]).sort((a, b) => b[1] - a[1]);
+                        sortedPlayers.forEach(function(playerScore) {
+                            categoryTable += '<tr><td>' + playerScore[0] + '</td><td>' + playerScore[1] + '</td></tr>';
+                        });
+                        
+                        categoryTable += '</tbody></table></div>';
+                        leaderboardsDiv.append(categoryTable);
+                    }
+                }
+            } else {
+                if (data.all_category) {
+                     var categoryTable = '<table><thead><tr><th class="player-column">Player</th><th class="score-column">Score</th></tr></thead><tbody>';
+                    
+                    var sortedPlayers = Object.entries(data.all_category).sort((a, b) => b[1] - a[1]);
                     sortedPlayers.forEach(function(playerScore) {
                         categoryTable += '<tr><td>' + playerScore[0] + '</td><td>' + playerScore[1] + '</td></tr>';
                     });
-
+                    
                     categoryTable += '</tbody></table></div>';
                     leaderboardsDiv.append(categoryTable);
                 }
             }
         });
+    }
+    
+    $(document).ready(function() {
+        // Fetch stats only once (only needed for Original)
+        $.getJSON('/api/tracks_without_replays', function(data) {
+            $('#tracks-without-replays').text(data.count);
+        });
+        $.getJSON('/api/replays_since_last_update', function(data) {
+            $('#replays-since-last-update').text(data.count);
+            $('#last-update').text(data.last_update);
+        });
+        
+        // ✅ Toggle handlers for three buttons
+        function setActive(btn) {
+            $('.toggle-btn').removeClass('active');
+            btn.addClass('active');
+        }
+        
+        $('#toggle-original').click(function() {
+            currentSource = 'original';
+            setActive($(this));
+            fetchLeaderboards();
+        });
+        
+        $('#toggle-difficulties').click(function() {
+            currentSource = 'difficulties';
+            setActive($(this));
+            fetchLeaderboards();
+        });
+        
+        $('#toggle-all').click(function() {
+            currentSource = 'all';
+            setActive($(this));
+            fetchLeaderboards();
+        });
+
+        // Initial load
+        fetchLeaderboards();
     });
 </script>
 </body>

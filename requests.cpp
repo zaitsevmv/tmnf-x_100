@@ -73,6 +73,8 @@ std::string toString(TrackDifficulty difficulty){
             return "Expert";
         case TrackDifficulty::Lunatic:
             return "Lunatic";
+        case TrackDifficulty::Unknown:
+            return "Unknown";
     }
     return "";
 }
@@ -110,7 +112,7 @@ void requests::LoadTemp(const std::string &tempFile) {
         while(fin >> curTag && curTag <= 12){
             tags.push_back(static_cast<trackTag>(curTag));
         }
-        allTracks.emplace(id, TrackStruct{id, static_cast<TrackDifficulty>(trackDifficulty), tags, false});
+        allTracks.emplace(id, TrackStruct{id, static_cast<TrackDifficulty>(trackDifficulty), tags, beaten});
         id = curTag;
         tags.clear();
     }
@@ -241,6 +243,7 @@ void requests::GetAllMapsForDifficulty() {
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
+    lastResponseSize = mapCount;
     if(curl) {
         httpsURLConstructor uc(host, target, params);
         std::cout << "Getting tracks." << std::endl;
@@ -316,15 +319,8 @@ void requests::GetAllMapsForDifficultyJSON(const std::string& jsonFile) {
         newTrack.trackId = trackId.as_int64();
         lastNoRecord = newTrack.trackId;
 
-        json::value trackTags = result.at("Tags");
-        std::vector<trackTag> tags;
-        for(const auto& tag: trackTags.as_array()){
-            tags.push_back(static_cast<trackTag>(tag.as_int64()));
-        }
-
         json::value trackDifficulty = result.at("Difficulty");
         newTrack.difficulty = static_cast<TrackDifficulty>(trackDifficulty.as_int64());
-        newTrack.tags = tags;
         allTracksIfNeeded.emplace(newTrack.trackId, newTrack);
     }
     allTracksIfNeeded.erase(0);
@@ -368,7 +364,11 @@ void requests::Compare() {
     int newBeaten{0};
     for(auto& [id, trackData]: allTracks){
         if (!allTracksIfNeeded.empty()) {
-            trackData.difficulty = allTracksIfNeeded.at(id).difficulty;
+            if (allTracksIfNeeded.contains(id)) {
+                trackData.difficulty = allTracksIfNeeded.at(id).difficulty;
+            } else {
+                trackData.difficulty = TrackDifficulty::Unknown;
+            }
         }
         if(!trackData.beaten && !noRecordTracks.contains(id)){
             trackData.beaten = true;
@@ -542,7 +542,7 @@ void requests::UpdateLeaderboardsNames() {
             leaderboardsByTag[static_cast<trackTag>(tag)][id].playerName = name_count.playerName;
         }
 
-        for(int64_t difficulty = static_cast<int64_t>(TrackDifficulty::Beginner); difficulty <= static_cast<int64_t>(TrackDifficulty::Lunatic); difficulty++){
+        for(int64_t difficulty = static_cast<int64_t>(TrackDifficulty::Beginner); difficulty <= static_cast<int64_t>(TrackDifficulty::Unknown); difficulty++){
             leaderboardsByDifficulty[static_cast<TrackDifficulty>(difficulty)][id].playerName = name_count.playerName;
         }
     }
@@ -658,7 +658,11 @@ void requests::SaveDataForFrontendByTag(const std::string &tempFile) {
         std::sort(playerData.begin(), playerData.end(),[](const Player& a, const Player& b){
             return a.finishedMaps > b.finishedMaps;
         });
-        playerData.resize(10);
+        if (tag == All) {
+            playerData.resize(30);
+        } else {
+            playerData.resize(10);
+        }
         fout << toString(tag) << std::endl;
         for(const auto& [playerName, playerId, finishedMaps]: playerData){
             if(finishedMaps == 0) break;
@@ -671,11 +675,6 @@ void requests::SaveDataForFrontendByTag(const std::string &tempFile) {
 
 void requests::SaveDataForFrontendByDifficulty(const std::string &tempFile) {
     std::ofstream fout(tempFile);
-    auto currentTime = std::chrono::system_clock::now();
-    std::time_t time = std::chrono::system_clock::to_time_t(currentTime);
-    fout << std::ctime(&time);
-    fout << noRec << std::endl;
-    fout << oldRecords.size()+tracksToCheck.size() << std::endl;
     for(const auto& [difficulty, subTable]: leaderboardsByDifficulty){
         std::vector<Player> playerData;
         playerData.reserve(subTable.size());

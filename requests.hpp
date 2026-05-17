@@ -16,7 +16,7 @@ constexpr int mapCount = 1000;
 enum trackTag{Normal, Stunt, Maze, Offroad, Laps, Fullspeed, LOL, Tech, SpeedTech, RPG, PressForward, Trial, Grass, All};
 
 enum class TrackDifficulty: int64_t {
-    Beginner = 0, Intermediate = 1, Expert = 2, Lunatic = 3
+    Beginner = 0, Intermediate = 1, Expert = 2, Lunatic = 3, Unknown = 10
 };
 
 class requests {

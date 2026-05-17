@@ -29,3 +29,36 @@ th {
 .score-column {
     width: 30%;
 }
+.header-text {
+    text-align: center;
+}
+.toggle-container {
+    text-align: center;
+    margin: 25px 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.toggle-btn {
+    padding: 10px 20px;
+    border: 2px solid #ddd;
+    background-color: white;
+    color: black;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    min-width: 100px;
+}
+
+.toggle-btn:hover {
+    background-color: #ddd;
+    color: black;
+    transform: translateY(-1px);
+}
+
+.toggle-btn.active {
+    background-color: #ddd;
+    color: black;
+}

@@ -17,14 +17,15 @@ int main(){
 
     requests req;
     req.LoadTemp(dataFile);
-    // req.LoadTempLeaderboardsByTag(leadersFileByTag);
-    // req.LoadTempLeaderboardsByDifficulty(leadersFileByDifficulty);
+    req.LoadTempLeaderboardsByTag(leadersFileByTag);
+    req.LoadTempLeaderboardsByDifficulty(leadersFileByDifficulty);
 
     auto start = std::chrono::system_clock::now();
     std::time_t startTime = std::chrono::system_clock::to_time_t(start);
     std::cout << "Getting records start time: " << std::ctime(&startTime) << std::endl;
     req.GetNoRecordMaps();
-    req.GetAllMapsForDifficulty();
+    // std::cout << "Getting all records" << std::endl;
+    // req.GetAllMapsForDifficulty();
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsedTime = end-start;
     std::cout << "Elapsed time: " << elapsedTime.count() << std::endl;
