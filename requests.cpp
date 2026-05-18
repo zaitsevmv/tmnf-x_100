@@ -13,9 +13,11 @@
 #include <fstream>
 #include <ctime>
 #include <chrono>
+#include <map>
 #include <mutex>
 #include <numeric>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -57,6 +59,18 @@ std::string toString(trackTag tag){
             return "Trial";
         case Grass:
             return "Grass";
+        case Story:
+            return "Story";
+        case Nascar:
+            return "Nascar";
+        case Speedfun:
+            return "Speedfun";
+        case Endurance:
+            return "Endurance";
+        case Altered_Nadeo:
+            return "Altered Nadeo";
+        case Transitional:
+            return "Transitional";
         case All:
             return "All";
     }
@@ -100,21 +114,32 @@ void requests::LoadTemp(const std::string &tempFile) {
     getline(fin, time);
     std::cout << "Last tracks update: " << time << std::endl;
     allTracks.clear();
-    int64_t id;
-    bool beaten;
-    std::string tagsLine;
-    std::vector<trackTag> tags;
-    fin >> id;
-    while(fin >> beaten){
-        int64_t trackDifficulty = 0;
-        fin >> trackDifficulty;
-        int curTag;
-        while(fin >> curTag && curTag <= 12){
+    
+    // blank line
+    getline(fin, time);
+    std::stringstream ss;
+    while(!fin.eof()){
+        std::string idStr;
+        std::getline(fin, idStr);
+        ss << idStr;
+        int64_t id = 0;
+        ss >> id;
+        bool beaten = false;
+        ss >> beaten;
+        int64_t trackDifficulty = static_cast<int64_t>(TrackDifficulty::Unknown);
+        ss >> trackDifficulty;
+
+        std::string tagsLine;
+        std::getline(fin, tagsLine);
+        ss.clear();
+        ss << tagsLine;
+        std::vector<trackTag> tags;
+        int curTag = 0;
+        while(ss >> curTag){
             tags.push_back(static_cast<trackTag>(curTag));
         }
         allTracks.emplace(id, TrackStruct{id, static_cast<TrackDifficulty>(trackDifficulty), tags, beaten});
-        id = curTag;
-        tags.clear();
+        ss.clear();
     }
     fin.close();
 }
@@ -234,7 +259,7 @@ void requests::GetAllMapsForDifficulty() {
     const std::string host = "tmnf.exchange";
     const std::string target = "/api/tracks";
     std::map<std::string, param_cell> params =
-            {{"fields", std::vector<std::string>{"TrackId", "Difficulty"}},
+            {{"fields", std::vector<std::string>{"TrackId", "Tags", "Difficulty"}},
                 {"count", mapCount}};
 
     CURL* curl;
@@ -271,7 +296,7 @@ void requests::GetAllMapsForDifficulty() {
             }
             GetAllMapsForDifficultyJSON("data/response.json");
             params =
-                    {{"fields", std::vector<std::string>{"TrackId", "Difficulty"}},
+                    {{"fields", std::vector<std::string>{"TrackId", "Tags","Difficulty"}},
                     {"count", mapCount},
                     {"after", lastNoRecord}};
             uc.UpdateParams(params);
@@ -319,8 +344,15 @@ void requests::GetAllMapsForDifficultyJSON(const std::string& jsonFile) {
         newTrack.trackId = trackId.as_int64();
         lastNoRecord = newTrack.trackId;
 
+        json::value trackTags = result.at("Tags");
+        std::vector<trackTag> tags;
+        for(const auto& tag: trackTags.as_array()){
+            tags.push_back(static_cast<trackTag>(tag.as_int64()));
+        }
+
         json::value trackDifficulty = result.at("Difficulty");
         newTrack.difficulty = static_cast<TrackDifficulty>(trackDifficulty.as_int64());
+        newTrack.tags = tags;
         allTracksIfNeeded.emplace(newTrack.trackId, newTrack);
     }
     allTracksIfNeeded.erase(0);
@@ -350,6 +382,7 @@ void requests::PrintMap() {
 
 void requests::Compare() {
     std::cout << std::endl;
+    allTracks.erase(0);
     if(allTracks.empty()){
         allTracks = noRecordTracks;
         return;
@@ -366,6 +399,7 @@ void requests::Compare() {
         if (!allTracksIfNeeded.empty()) {
             if (allTracksIfNeeded.contains(id)) {
                 trackData.difficulty = allTracksIfNeeded.at(id).difficulty;
+                trackData.tags = allTracksIfNeeded.at(id).tags;
             } else {
                 trackData.difficulty = TrackDifficulty::Unknown;
             }

@@ -8,12 +8,13 @@
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
-
-#include "boost/program_options.hpp"
+#include <string>
+#include <unordered_set>
+#include <vector>
 
 constexpr int mapCount = 1000;
 
-enum trackTag{Normal, Stunt, Maze, Offroad, Laps, Fullspeed, LOL, Tech, SpeedTech, RPG, PressForward, Trial, Grass, All};
+enum trackTag{Normal, Stunt, Maze, Offroad, Laps, Fullspeed, LOL, Tech, SpeedTech, RPG, PressForward, Trial, Grass, Story, Nascar, Speedfun, Endurance, Altered_Nadeo, Transitional, All};
 
 enum class TrackDifficulty: int64_t {
     Beginner = 0, Intermediate = 1, Expert = 2, Lunatic = 3, Unknown = 10
@@ -69,7 +70,7 @@ private:
     std::unordered_map<trackTag, leaderboardValue> leaderboardsByTag;
     std::unordered_map<TrackDifficulty, leaderboardValue> leaderboardsByDifficulty;
     std::vector<int64_t> tracksToCheck;
-    std::set<int64_t> oldRecords;
+    std::unordered_set<int64_t> oldRecords;
     std::unordered_map<int64_t, TrackStruct> extraTracks;
     int64_t lastNoRecord;
     int noRec = 0;
